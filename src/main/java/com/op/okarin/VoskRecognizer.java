@@ -10,6 +10,10 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.TargetDataLine;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class VoskRecognizer {
 
@@ -18,7 +22,7 @@ public class VoskRecognizer {
     @Setter
     private String wakeWord;
     private TargetDataLine line;
-    private Recognizer recognizer;
+    private Model model;
 
     public void prepareData() {
         try {
@@ -36,8 +40,7 @@ public class VoskRecognizer {
 
             LibVosk.setLogLevel(LogLevel.DEBUG);
 
-            Model model = new Model("model");
-            recognizer = new Recognizer(model, 16000);
+            model = new Model("model");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -47,15 +50,48 @@ public class VoskRecognizer {
     public void detectWakeWord() {
         line.start();
         byte[] targetData = new byte[4096];
-        while (true) {
-            line.read(targetData, 0, targetData.length);
-            if (recognizer.acceptWaveForm(targetData, targetData.length)) {
-                if (recognizer.getPartialResult().toLowerCase().contains(wakeWord)) {
-                    onWakeWord.run();
-                    break;
+        try (Recognizer recognizer = new Recognizer(model, 16000)) {
+
+            while (true) {
+                line.read(targetData, 0, targetData.length);
+                if (recognizer.acceptWaveForm(targetData, targetData.length)) {
+                    if (recognizer.getPartialResult().toLowerCase().contains(wakeWord)) {
+                        onWakeWord.run();
+                        break;
+                    }
                 }
             }
         }
         line.close();
+    }
+
+    public void detectionMode() {
+        System.out.println("Listening to the command");
+
+        List<String> commands = Arrays.stream(Commands.values())
+                .map(Commands::getCommand)
+                .collect(Collectors.toList());
+
+
+        line.start();
+        try (Recognizer recognizer = new Recognizer(model, 16000)) {
+            byte[] targetData = new byte[4096];
+            Optional<String> detected;
+            while (true) {
+                line.read(targetData, 0, targetData.length);
+                if (recognizer.acceptWaveForm(targetData, targetData.length)) {
+                    System.out.println(recognizer.getPartialResult());
+                    detected = commands.stream()
+                            .filter(s -> recognizer.getPartialResult().toLowerCase().contains(s))
+                            .findAny();
+                    if (detected.isPresent()) {
+                        Commands.OPEN_BROWSER.getAction().run();
+                        break;
+                    }
+                }
+            }
+        }
+        line.close();
+        detectWakeWord();
     }
 }
