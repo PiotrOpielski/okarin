@@ -1,5 +1,7 @@
 package com.op.okarin;
 
+import com.op.okarin.configuration.Command;
+import com.op.okarin.configuration.Register;
 import lombok.Setter;
 import org.vosk.LibVosk;
 import org.vosk.LogLevel;
@@ -10,15 +12,10 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.TargetDataLine;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class VoskRecognizer {
 
-    @Setter
-    private Runnable onWakeWord;
     @Setter
     private String wakeWord;
     private TargetDataLine line;
@@ -56,7 +53,7 @@ public class VoskRecognizer {
                 line.read(targetData, 0, targetData.length);
                 if (recognizer.acceptWaveForm(targetData, targetData.length)) {
                     if (recognizer.getPartialResult().toLowerCase().contains(wakeWord)) {
-                        onWakeWord.run();
+                        detectionMode();
                         break;
                     }
                 }
@@ -68,24 +65,21 @@ public class VoskRecognizer {
     public void detectionMode() {
         System.out.println("Listening to the command");
 
-        List<String> commands = Arrays.stream(Commands.values())
-                .map(Commands::getCommand)
-                .collect(Collectors.toList());
-
-
         line.start();
         try (Recognizer recognizer = new Recognizer(model, 16000)) {
             byte[] targetData = new byte[4096];
-            Optional<String> detected;
+            Optional<Command> detected;
             while (true) {
                 line.read(targetData, 0, targetData.length);
                 if (recognizer.acceptWaveForm(targetData, targetData.length)) {
                     System.out.println(recognizer.getPartialResult());
-                    detected = commands.stream()
-                            .filter(s -> recognizer.getPartialResult().toLowerCase().contains(s))
+
+                    detected = OkarinApplication.configuration.getCommands().stream()
+                            .filter(s -> s.doesComply(recognizer.getPartialResult()))
                             .findAny();
+
                     if (detected.isPresent()) {
-                        Commands.OPEN_BROWSER.getAction().run();
+                        Register.valueOf(detected.get().getName()).getAction().run();
                         break;
                     }
                 }

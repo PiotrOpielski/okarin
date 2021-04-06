@@ -1,0 +1,21 @@
+{
+  "wakeWord": "hey now",
+  "commands": [
+    {
+      "name": "OPEN_BROWSER",
+      "contains": {
+        "value": "open",
+        "and": [
+          {
+            "value": "browser",
+            "or": [
+              {
+                "value": "bowser"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
